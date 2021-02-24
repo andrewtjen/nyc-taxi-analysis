@@ -4,7 +4,7 @@ The report here analysed the factos that affect New York Yellow taxi profit thro
 
 ## Dataset
 
-The dataset was taken from the TLC New York taxi data and New York National Weather Forecast
+The dataset was taken from the TLC New York taxi data, New York National Weather Forecast, and Humm data covid cases.
 * Taxi: https://www1.nyc.gov/site/tlc/about/tlc-trip-record-data.page
 * Weather: https://www.wunderground.com/history/monthly/us/nj/newark/KEWR/date/2020-6
 * Covid in nyc: https://data.humdata.org/dataset/nyt-covid-19-data?#metadata-0
