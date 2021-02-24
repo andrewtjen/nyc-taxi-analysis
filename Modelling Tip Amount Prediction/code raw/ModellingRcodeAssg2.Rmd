@@ -1,0 +1,194 @@
+---
+title: "asd"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+nyc_taxi <- read.csv("data_to_r.csv", header = TRUE)
+```
+
+
+```{r}
+nyc_taxi$PULocationID <- as.factor(nyc_taxi$PULocationID )
+str(nyc_taxi)
+```
+
+
+MODEL FITTING:
+```{r}
+sample.1000 <- nyc_taxi[sample(nrow(nyc_taxi), 10000),]
+```
+
+```{r}
+
+with(sample.1000, pairs(~  tip_amount + duration + 
+    trip_distance + fare_amount +passenger_count + log(daily.change) + 
+    log(Percipitation..in.), cex.labels=1.5))
+
+```
+
+```{r}
+with(sample.1000, pairs(~  tip_amount + duration + 
+    trip_distance + fare_amount + passenger_count + daily.change + 
+    Percipitation..in., cex.labels=1.5))
+```
+
+TEST DATA: 
+```{r}
+library(tidyverse)
+library(caret)
+nyc_taxi$passenger_count <- as.factor(nyc_taxi$passenger_count )
+set.seed(123)
+training.samples <- nyc_taxi$tip_amount %>% createDataPartition(p = 0.8, list = FALSE)
+train.data  <- nyc_taxi[training.samples, ]
+test.data <- nyc_taxi[-training.samples, ]
+```
+
+```{r}
+model <- lm(tip_amount ~ duration+ passenger_count  + trip_distance + fare_amount + log(I(daily.change+0.01)) + log(I(Percipitation..in. + 0.01)),data = train.data)
+summary(model)
+model <- step(model)
+summary(model)
+predictions <- model %>% predict(test.data)
+
+```
+
+```{r}
+data.frame( R2 = R2(predictions, test.data$tip_amount),
+            RMSE = RMSE(predictions, test.data$tip_amount),
+            MAE = MAE(predictions, test.data$tip_amount))
+data.frame
+```
+
+```{r}
+
+model1 <- lm(tip_amount ~ passenger_count + fare_amount*(trip_distance + duration)  + log(I(daily.change + 0.01)) + log(I(Percipitation..in. + 0.01)), data = train.data)
+summary(model1)
+model1 <- step(model1)
+summary(model1)
+predictions <- model1 %>% predict(test.data)
+
+```
+
+```{r}
+data.frame( R2 = R2(predictions, test.data$tip_amount),
+            RMSE = RMSE(predictions, test.data$tip_amount),
+            MAE = MAE(predictions, test.data$tip_amount))
+data.frame
+```
+
+```{r}
+anova(model1, model, test="LRT")
+```
+
+```{r}
+sum(residuals(model1, type="pearson") ^ 2) / 9365341
+```
+
+```{r}
+par(mfrow =c(2,2))
+plot(model1)
+```
+
+```{r}
+print("tip_amount")
+summary(train.data$tip_amount)
+print("fare_amount")
+summary(train.data$fare_amount)
+print("duration")
+summary(train.data$duration)
+print("passenger_count")
+summary(train.data$passenger_count)
+print("trip_distance")
+summary(train.data$trip_distance)
+print("daily.change")
+summary(train.data$daily.change)
+print("Percipitation..in.")
+summary(train.data$Percipitation..in.)
+```
+
+
+Attempt to penalize using ridge
+```{r}
+library("glmnet")
+
+predictors <- c("fare_amount","passenger_count","duration","time_of_day","trip_distance","daily.change", "tip_amount")
+dummies <- dummyVars(tip_amount ~  passenger_count + fare_amount + time_of_day + 
+    duration + log(I(daily.change + 0.01)), data = nyc_taxi[,predictors])
+train_dummies = predict(dummies, newdata = train.data[,predictors])
+test_dummies = predict(dummies, newdata = test.data[,predictors])
+
+x = as.matrix(train_dummies)
+y_train = train.data$tip_amount
+
+x_test = as.matrix(test_dummies)
+y_test = test.data$tip_amount
+
+lambdas <- 10^seq(2, -3, by = -.1)
+ridge_reg = glmnet(x, y_train, nlambda = 25, alpha = 0, family = 'gaussian', lambda = lambdas)
+cv_ridge <- cv.glmnet(x, y_train, alpha = 0, lambda = lambdas)
+optimal_lambda <- cv_ridge$lambda.min
+optimal_lambda
+
+```
+
+```{r}
+
+eval_results <- function(true, predicted, df) {
+  SSE <- sum((predicted - true)^2)
+  SST <- sum((true - mean(true))^2)
+  R_square <- 1 - SSE / SST
+  RMSE = sqrt(SSE/nrow(df))
+
+  
+  # Model performance metrics
+data.frame(
+  RMSE = RMSE,
+  Rsquare = R_square
+)
+  
+}
+
+# Prediction and evaluation on train data
+predictions_train <- predict(ridge_reg, s = optimal_lambda, newx = x)
+eval_results(y_train, predictions_train, train.data)
+
+# Prediction and evaluation on test data
+predictions_test <- predict(ridge_reg, s = optimal_lambda, newx = x_test)
+eval_results(y_test, predictions_test, test.data)
+```
+
+Fitting no outlier attempt
+```{r}
+nyc_no_outlier <-  read.csv("no_outlier_400.csv", header = TRUE)
+
+```
+
+```{r}
+nyc_no_outlier$PULocationID <- as.factor(nyc_no_outlier$PULocationID )
+nyc_no_outlier$passenger_count <- as.factor(nyc_no_outlier$passenger_count )
+set.seed(123)
+training1.samples <- nyc_no_outlier$tip_amount %>% createDataPartition(p = 0.8, list = FALSE)
+train1.data  <- nyc_no_outlier[training.samples, ]
+test1.data <- nyc_no_outlier[-training.samples, ]
+```
+
+```{r}
+model3 <- lm(tip_amount ~ passenger_count + fare_amount + trip_distance + 
+    duration + log(I(daily.change + 0.01)) + fare_amount:trip_distance + 
+    fare_amount:duration, data = train1.data)
+summary(model3)
+predictions <- model3 %>% predict(test1.data)
+data.frame( R2 = R2(predictions, test1.data$tip_amount),
+            RMSE = RMSE(predictions, test1.data$tip_amount),
+            MAE = MAE(predictions, test1.data$tip_amount))
+data.frame
+```
